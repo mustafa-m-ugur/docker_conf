@@ -1,0 +1,150 @@
+version: "3.7"
+
+services:
+
+  # Nginx Web Servis
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - /home/mustafa/projects:/var/www
+      - ./config/nginx/conf.d:/etc/nginx/conf.d
+      - ./log/nginx/:/var/log/nginx/
+    environment:
+      TZ: "Europe/Istanbul"
+    networks:
+      4a-stack:
+        aliases:
+          - test.test
+  # PHP-FPM
+  php-fpm:
+    build: ./config/php-fpm
+    container_name: php-fpm
+    restart: always
+    volumes:
+      - /home/mustafa/projects:/var/www
+      - ./config/php-fpm/php.ini:/usr/local/etc/php/php.ini
+    networks:
+      - 4a-stack
+
+  # PostgreSQL
+  postgres:
+    image: postgres:alpine
+    container_name: postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    env_file:
+      - ./config/postgres/config.env
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - 4a-stack
+
+#    Redis
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - 4a-stack
+
+  # Elasticsearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.4.0
+    container_name: elasticsearch
+    restart: always
+    volumes:
+      - ./config/elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+      - ./data/elasticsearch:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    environment:
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    networks:
+      - 4a-stack
+
+  # Kibana
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.4.0
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    networks:
+      - 4a-stack
+
+  # Logstash
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.4.0
+    container_name: logstash
+    ports:
+      - "9600:9600"
+    environment:
+      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+    depends_on:
+      - elasticsearch
+    links:
+      - elasticsearch
+    networks:
+      - 4a-stack
+
+#    Mongo
+  mongo:
+    image: mongo:4.4.1-bionic
+    container_name: mongo
+    restart: always
+    volumes:
+      - ./data/mongo:/data/db
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: 123456
+    networks:
+      - 4a-stack
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_ERLANG_COOKIE: 'rabbit'
+      RABBITMQ_DEFAULT_USER: root
+      RABBITMQ_DEFAULT_PASS: 123456
+    networks:
+      - 4a-stack
+
+  mysql:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: mysql
+    #      MYSQL_DATABASE: mysql
+    #      MYSQL_ROOT_USER: root
+    #      MYSQL_ROOT_PASSWORD: 123456
+    #      MYSQL_ROOT_HOST: localhost
+    ports:
+      - 3306:3306
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    networks:
+      - 4a-stack
+
+networks:
+  4a-stack:
+    driver: bridge
